@@ -69,29 +69,36 @@ class AmpModule(System):
         #):
         #    raise RuntimeError("Hearing model not loaded")
         proc, ref = batch
-        #ref = ref[:, self.ear_idx, :]
-        #if self.config.downsample_factor != 1:
-        #    proc = self.down_sample(proc)
-        #    ref = self.down_sample(ref)
+        ref = ref[:, self.ear_idx, :]
+        if self.config.downsample_factor != 1:
+            proc = self.down_sample(proc)
+            ref = self.down_sample(ref)
         
-        if proc.shape[1] == 2:  # Example adjustment if you have 2 channels but need 1
-            logger.info("********************************************")
+        #if proc.shape[1] == 2:  # Example adjustment if you have 2 channels but need 1
+        #    logger.info("********************************************")
             #    proc = proc[:, 0:1, :]
-        logger.info("###############################################")
-        logger.info(proc.shape)
+        #logger.info("###############################################")
+        #logger.info(proc.shape)
 
         den_var = self.den_model(proc)
-        if den_var.shape[1] == 2:
-            den_var = den_var[:, 0:1, :]
-        logger.info("___________________")
-        logger.info(den_var.shape)
+        #logger.info("@@@@@@@@@@@@@@")
+        #logger.info(den_var.shape)
+        #if den_var.shape[1] == 2:
+        #    den_var = den_var[:, 0:1, :]
+        den_var = den_var[:, self.ear_idx, :]
+        #logger.info("___________________")
+        #logger.info(den_var.shape)
 
         varvar = self.model(den_var)
+        #logger.info("@@@@@@@@@@@@@@")
+        #logger.info(varvar.shape)
         enhanced = varvar.squeeze(1)
         #enhanced = self.model(self.den_model(proc)).squeeze(1)
         if self.config.downsample_factor != 1:
             enhanced = torch.clamp(self.up_sample(enhanced), -1, 1)
             ref = torch.clamp(self.up_sample(ref), -1, 1)
+        #logger.info("__________@@@@@______")
+        #logger.info(enhanced.shape)
         #hl = torch.tensor(hl, dtype=torch.float32).unsqueeze(0).to(proc.device)
         #enhanced = self.model(
         #    hl, target.view(target.shape[0] * target.shape[1], 1, -1)
@@ -101,13 +108,14 @@ class AmpModule(System):
         #target = target.view(target.shape[0] * target.shape[1], -1)
         #enhanced = self.down_sample(enhanced)
         #target = self.down_sample(target)
-        logger.info(f"Shape of enhanced: {enhanced.shape}")
-        logger.info(f"Shape of ref: {ref.shape}")
-        
-        if ref.shape[1] == 2:  # Example adjustment if you have 2 channels but need 1
-            logger.info("********************************************")
-            ref = ref[:, 0:1, :].squeeze(1)
-            logger.info(ref.shape)
+        #logger.info(f"Shape of enhanced: {enhanced.shape}")
+        #logger.info(f"Shape of ref: {ref.shape}")
+        #logger.info("################")
+        #logger.info(ref.shape)
+        #if ref.shape[1] == 2:  # Example adjustment if you have 2 channels but need 1
+        #    logger.info("********************************************")
+        #    ref = ref[:, 0:1, :].squeeze(1)
+        #    logger.info(ref.shape)
 
         sim_ref = self.nh_ear(ref)
         sim_enhanced = self.hl_ear(enhanced)
