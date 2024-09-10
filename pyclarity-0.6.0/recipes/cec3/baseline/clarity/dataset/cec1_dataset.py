@@ -8,6 +8,8 @@ import torch
 from scipy.signal import firwin, lfilter
 from soundfile import read
 from torch.utils import data
+from glob import glob
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -336,3 +338,310 @@ class CEC1DatasetTrain(data.Dataset):
 
     def __len__(self):
         return len(self.scene_list)
+
+class CEC2Dataset(data.Dataset):
+    def __init__(
+        self,
+        scenes_folder,
+        scenes_file,
+        sample_rate,
+        downsample_factor,
+        wav_sample_len=None,
+        wav_silence_len=2,
+        num_channels=6,
+        norm=False,
+        testing=False,
+    ):
+        self.scenes_folder = scenes_folder
+        self.sample_rate = sample_rate
+        self.downsample_factor = downsample_factor
+        self.wav_sample_len = wav_sample_len
+        self.wav_silence_len = wav_silence_len
+        self.num_channels = num_channels
+        self.norm = norm
+        self.testing = testing
+
+        self.scene_list = []
+        with open(scenes_file, "r") as f:
+            self.scene_dict = json.load(f)
+            if not testing:
+                for i in range(len(self.scene_dict)):
+                    self.scene_list.append(self.scene_dict[i]["scene"])
+            else:
+                for i in range(len(self.scene_dict)):
+                    self.scene_list.append(self.scene_dict[i]["scene"])
+            f.close()
+
+        if self.num_channels == 2:
+            self.mixed_suffix = "_mix_CH1.wav"
+            self.target_suffix = "_reference.wav"
+
+        elif self.num_channels == 6:
+            self.mixed_suffix = ["_mix_CH1.wav", "_mix_CH2.wav", "_mix_CH3.wav"]
+            self.target_suffix = "_target_CH1.wav"
+        else:
+            raise NotImplementedError
+
+    def read_wavfile(self, path):
+        wav, wav_sr = read(path)
+        assert wav_sr == self.sr
+        return wav.transpose()
+
+    def wav_sample(self, x, y):
+        """
+        A 2 second silence is in the beginning of clarity data
+        Get rid of the silence segment in the beginning & sample a
+        constant wav length for training.
+        """
+        silence_len = int(self.wav_silence_len * self.sample_rate)
+        x = x[:, silence_len:]
+        y = y[:, silence_len:]
+
+        wav_len = x.shape[1]
+        sample_len = int(self.wav_sample_len * self.sample_rate)
+        if wav_len > sample_len:
+            start = np.random.randint(wav_len - sample_len)
+            end = start + sample_len
+            x = x[:, start:end]
+            y = y[:, start:end]
+        elif wav_len < sample_len:
+            x = np.append(
+                x, np.zeros([x.shape[1], sample_len - wav_len], dtype=np.float32)
+            )
+            y = np.append(
+                y, np.zeros([x.shape[1], sample_len - wav_len], dtype=np.float32)
+            )
+
+        return x, y
+
+    def __getitem__(self, item):
+
+        scenes_folder = Path(self.scenes_folder)
+        if self.num_channels == 2:
+            mixed = read_wavfile(
+                scenes_folder / (self.scene_list[item] + self.mixed_suffix)
+            )
+        elif self.num_channels == 6:
+            mixed = []
+            for suffix in self.mixed_suffix:
+                mixed.append(
+                    read_wavfile(scenes_folder / (self.scene_list[item] + suffix))
+                )
+            mixed = np.concatenate(mixed, axis=0)
+        else:
+            raise NotImplementedError
+        target = None
+        if not self.testing:
+            target = read_wavfile(
+                scenes_folder / (self.scene_list[item] + self.target_suffix)
+            )
+            if target.shape[1] > mixed.shape[1]:
+                logging.warning(
+                    "Target length is longer than mixed length. Truncating target."
+                )
+                target = target[:, : mixed.shape[1]]
+            elif target.shape[1] < mixed.shape[1]:
+                logging.warning(
+                    "Target length is shorter than mixed length. Padding target."
+                )
+                target = np.pad(
+                    target,
+                    ((0, 0), (0, mixed.shape[1] - target.shape[1])),
+                    mode="constant",
+                )
+        
+        if self.sample_rate != 44100:
+            mixed_resampled, target_resampled = [], []
+            for i in range(mixed.shape[0]):
+                mixed_resampled.append(
+                    librosa.resample(
+                        mixed[i], target_sr=44100, orig_sr=self.sample_rate
+                    )
+                )
+            mixed = np.array(mixed_resampled)
+            if target is not None:
+                for i in range(target.shape[0]):
+                    target_resampled.append(
+                        librosa.resample(
+                            target[i], target_sr=44100, orig_sr=self.sample_rate
+                        )
+                    )
+                target = np.array(target_resampled)
+
+        if self.wav_sample_len is not None:
+            mixed, target = self.wav_sample(mixed, target)
+
+        if self.norm:
+            mixed_max = np.max(np.abs(mixed))
+            mixed = mixed / mixed_max
+            target = target / mixed_max
+
+        if not self.testing:
+            return (
+                torch.tensor(mixed, dtype=torch.float32),
+                torch.tensor(target, dtype=torch.float32),
+                self.scene_list[item],
+            )
+        else:
+            return (
+                torch.tensor(mixed, dtype=torch.float32),
+                torch.tensor(mixed.shape[-1]),
+                self.scene_list[item],
+            )
+
+    def __len__(self):
+        return len(self.scene_list)
+
+class CEC3Dataset(data.Dataset):
+    def __init__(
+        self,
+        scenes_folder,
+        scenes_file,
+        sample_rate,
+        downsample_factor,
+        wav_sample_len=None,
+        wav_silence_len=2,
+        num_channels=6,
+        norm=False,
+        testing=False,
+    ):
+        self.scenes_folder = scenes_folder
+        self.sample_rate = sample_rate
+        self.downsample_factor = downsample_factor
+        self.wav_sample_len = wav_sample_len
+        self.wav_silence_len = wav_silence_len
+        self.num_channels = num_channels
+        self.norm = norm
+        self.testing = testing
+
+        self.scene_list = []
+        with open(scenes_file, "r") as f:
+            self.scene_dict = json.load(f)
+            if not testing:
+                for i in range(len(self.scene_dict)):
+                    self.scene_list.append(self.scene_dict[i]["scene"])
+            else:
+                for i in range(len(self.scene_dict)):
+                    self.scene_list.append(self.scene_dict[i]["scene"])
+            f.close()
+
+        if self.num_channels == 2:
+            self.mixed_suffix = "_mix_CH1.wav"
+            self.target_suffix = "_reference.wav"
+
+        elif self.num_channels == 6:
+            self.mixed_suffix = ["_mix_CH1.wav", "_mix_CH2.wav", "_mix_CH3.wav"]
+            self.target_suffix = "_reference.wav"
+        else:
+            raise NotImplementedError
+
+    def wav_sample(self, x, y):
+        """
+        A 2 second silence is in the beginning of clarity data
+        Get rid of the silence segment in the beginning & sample a
+        constant wav length for training.
+        """
+        silence_len = int(self.wav_silence_len * self.sample_rate)
+        x = x[:, silence_len:]
+        y = y[:, silence_len:]
+
+        wav_len = x.shape[1]
+        sample_len = int(self.wav_sample_len * self.sample_rate)
+        if wav_len > sample_len:
+            start = np.random.randint(wav_len - sample_len)
+            end = start + sample_len
+            x = x[:, start:end]
+            y = y[:, start:end]
+        elif wav_len < sample_len:
+            x = np.append(
+                x, np.zeros([x.shape[1], sample_len - wav_len], dtype=np.float32)
+            )
+            y = np.append(
+                y, np.zeros([x.shape[1], sample_len - wav_len], dtype=np.float32)
+            )
+
+        return x, y
+
+    def __getitem__(self, item):
+
+        scenes_folder = Path(self.scenes_folder)
+        if self.num_channels == 2:
+            mixed = read_wavfile(
+                scenes_folder / (self.scene_list[item] + self.mixed_suffix)
+            )
+        elif self.num_channels == 6:
+            mixed = []
+            for suffix in self.mixed_suffix:
+                mixed.append(
+                    read_wavfile(scenes_folder / (self.scene_list[item] + suffix))
+                )
+            mixed = np.concatenate(mixed, axis=0)
+        else:
+            raise NotImplementedError
+        target = None
+        if not self.testing:
+            target = read_wavfile(
+                scenes_folder / (self.scene_list[item] + self.target_suffix)
+            )
+            if len(target.shape) == 1:  # Check if it's a mono signal
+                target = np.stack([target, target], axis=0)  # Duplicate the channel to create stereo
+                #print("*************")
+                #print(target.shape)
+            if target.shape[1] > mixed.shape[1]:
+                logging.warning(
+                    "Target length is longer than mixed length. Truncating target."
+                )
+                target = target[:, : mixed.shape[1]]
+            elif target.shape[1] < mixed.shape[1]:
+                logging.warning(
+                    "Target length is shorter than mixed length. Padding target."
+                )
+                target = np.pad(
+                    target,
+                    ((0, 0), (0, mixed.shape[1] - target.shape[1])),
+                    mode="constant",
+                )
+        
+        if self.sample_rate != 44100:
+            mixed_resampled, target_resampled = [], []
+            for i in range(mixed.shape[0]):
+                mixed_resampled.append(
+                    librosa.resample(
+                        mixed[i], target_sr=44100, orig_sr=self.sample_rate
+                    )
+                )
+            mixed = np.array(mixed_resampled)
+            if target is not None:
+                for i in range(target.shape[0]):
+                    target_resampled.append(
+                        librosa.resample(
+                            target[i], target_sr=44100, orig_sr=self.sample_rate
+                        )
+                    )
+                target = np.array(target_resampled)
+
+        if self.wav_sample_len is not None:
+            mixed, target = self.wav_sample(mixed, target)
+
+        if self.norm:
+            mixed_max = np.max(np.abs(mixed))
+            mixed = mixed / mixed_max
+            if target is not None:
+                target = target / mixed_max
+
+        if not self.testing:
+            return (
+                torch.tensor(mixed, dtype=torch.float32),
+                torch.tensor(target, dtype=torch.float32),
+                self.scene_list[item],
+            )
+        else:
+            return (
+                torch.tensor(mixed, dtype=torch.float32),
+                torch.tensor(mixed.shape[-1]),
+                self.scene_list[item],
+            )
+
+    def __len__(self):
+        return len(self.scene_list)
+

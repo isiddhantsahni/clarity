@@ -81,7 +81,7 @@ def make_scene_listener_list(scenes_listeners, small_test=False):
     return scene_listener_pairs
 
 
-@hydra.main(config_path=".", config_name="config_den_arch")
+@hydra.main(config_path=".", config_name="config_den_cec2")
 def run_calculate_si(cfg: DictConfig) -> None:
     """Evaluate the enhanced signals using a combination of HASPI and HASQI metrics"""
 
@@ -124,19 +124,32 @@ def run_calculate_si(cfg: DictConfig) -> None:
         sr_signal, signal = wavfile.read(
             amplified_folder / f"{scene}_{listener_id}_HA-output.wav",
         )
-        _, reference = wavfile.read(scenes_folder / f"{scene}_reference.wav")
+
+        fs_ref_anechoic, ref_anechoic = wavfile.read(
+            scenes_folder / f"{scene}_target_anechoic_CH1.wav"
+        )
+
+        fs_ref_target, ref_target = wavfile.read(
+            scenes_folder / f"{scene}_target_CH1.wav"
+        )
+
+        assert fs_ref_anechoic == fs_ref_target == sr_signal
+
+        rms_target = np.mean(ref_target**2, axis=0) ** 0.5
+        rms_anechoic = np.mean(ref_anechoic**2, axis=0) ** 0.5
+        ref = ref_anechoic * rms_target / rms_anechoic
 
         # if reference is mono then make stereo version
-        if len(reference.shape) == 1:
-            reference = np.stack([reference, reference], axis=1)
+        # if len(reference.shape) == 1:
+        #     reference = np.stack([reference, reference], axis=1)
 
-        reference = reference / 32768.0
+        # reference = reference / 32768.0
 
         # Evaluate the HA-output signals
         listener = listeners_dict[listener_id]
 
         haspi_score = compute_metric(
-            haspi_v2_be, signal, reference, listener, sr_signal
+            haspi_v2_be, signal, ref, listener, sr_signal
         )
 
         results_file.add_result(scene, listener_id, haspi_score)

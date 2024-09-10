@@ -1,10 +1,10 @@
-task: 'task1' # This can be set to 'task1', 'task2' or 'task3'
+task: 'task2' # This can be set to 'task1', 'task2' or 'task3'
 
 path:
   # cec1_root: ???
   # exp_folder: ??? # folder to store intermediate signals and final results
   root: /fastdata/act23ss/clarity_data/clarity_CEC3_data # root folder for clarity data
-  exp: /home/act23ss/clarity/data # folder to store enhanced signals and final results
+  exp: /home/act23ss/clarity/data_task2 # folder to store enhanced signals and final results
   scenes_folder: ${path.root}/${task}/clarity_data/dev/scenes
   metadata_dir: ${path.root}/${task}/clarity_data/metadata
   scenes_listeners_file: ${path.metadata_dir}/scenes_listeners.dev.json
@@ -56,13 +56,13 @@ fir:
 den_trainer:
   optimizer:
     lr: 1e-3
-  epochs: 50
+  epochs: 25
   gradient_clip_val: 5.0
 
 amp_trainer:
   optimizer:
     lr: 5e-2
-  epochs: 1 #50
+  epochs: 5 #50
   gradient_clip_val: 5.0
   stoilevel_loss:
     sr: ${sample_rate}

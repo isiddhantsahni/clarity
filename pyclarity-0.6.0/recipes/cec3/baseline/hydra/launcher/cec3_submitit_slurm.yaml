@@ -6,7 +6,7 @@ defaults:
 
 mem_per_cpu: 32GB
 tasks_per_node: 1
-timeout_min: 180
+timeout_min: 90
 #additional_parameters:
 #  account: clarity
 #  partition: clarity
@@ -14,6 +14,6 @@ setup:
   [
     "module load Anaconda3/5.3.0 libsndfile/1.0.28-GCCcore-9.3.0",
     "module load CUDA/10.2.89-GCC-8.3.0",
-    "source activate myclarity",
+    "source activate clarityenv",
     "export SLURM_EXPORT_ENV=ALL",
   ]

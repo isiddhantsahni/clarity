@@ -13,7 +13,7 @@ from omegaconf import DictConfig
 from pytorch_lightning.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 
-from clarity.dataset.cec1_dataset import CEC1Dataset
+from clarity.dataset.cec1_dataset import CEC1Dataset, CEC3Dataset
 from clarity.dataset.cec1_dataset import CEC1DatasetTrain
 from clarity.engine.losses import SNRLoss, STOILevelLoss
 from clarity.engine.system import System
@@ -45,7 +45,7 @@ class DenModule(System):
         #return loss
     
     def common_step(self, batch, batch_nb, train=True):
-        mix, target = batch
+        mix, target, _ = batch
         enhanced = self.model(mix)
         loss = self.loss_func(enhanced, target)
         return loss
@@ -99,7 +99,7 @@ class AmpModule(System):
         #    or self.den_model is None
         #):
         #    raise RuntimeError("Hearing model not loaded")
-        proc, ref = batch
+        proc, ref, _ = batch
         ref = ref[:, self.ear_idx, :]
 
         # Randomly select a listener ID and set audiogram for the current batch
@@ -179,9 +179,9 @@ def train_den(cfg):
         logger.info("Enhancement module exist")
         return
 
-    train_set = CEC1DatasetTrain(**cfg.train_dataset)
+    train_set = CEC3Dataset(**cfg.train_dataset)
     train_loader = DataLoader(dataset=train_set, **cfg.train_loader)
-    dev_set = CEC1Dataset(**cfg.dev_dataset)
+    dev_set = CEC3Dataset(**cfg.dev_dataset)
     dev_loader = DataLoader(dataset=dev_set, **cfg.dev_loader)
 
     den_model = ConvTasNet(**cfg.mc_conv_tasnet)
@@ -256,9 +256,9 @@ def train_amp(cfg, ear):
         logger.info("Amplification module exist")
         return
 
-    train_set = CEC1DatasetTrain(**cfg.train_dataset)
+    train_set = CEC3Dataset(**cfg.train_dataset)
     train_loader = DataLoader(dataset=train_set, **cfg.train_loader)
-    dev_set = CEC1Dataset(**cfg.dev_dataset)
+    dev_set = CEC3Dataset(**cfg.dev_dataset)
     dev_loader = DataLoader(dataset=dev_set, **cfg.dev_loader)
 
     # load denoising module
@@ -379,7 +379,7 @@ def train_amp(cfg, ear):
     torch.save(amp_module.model.state_dict(), str(exp_dir / "best_model.pth"))
 
 
-@hydra.main(config_path=".", config_name="config", version_base="1.1")
+@hydra.main(config_path=".", config_name="config_task2", version_base="1.1")
 def run(cfg: DictConfig) -> None:
     logger.info("Begin training ear enhancement module.")
     train_den(cfg)

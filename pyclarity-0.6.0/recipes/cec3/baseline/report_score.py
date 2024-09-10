@@ -16,7 +16,7 @@ def load_scenes_data(json_file):
     return scenes_data
 
 
-@hydra.main(config_path=".", config_name="config")
+@hydra.main(config_path=".", config_name="config_den_arch")
 def main(cfg):
     """Score the evaluation results."""
 

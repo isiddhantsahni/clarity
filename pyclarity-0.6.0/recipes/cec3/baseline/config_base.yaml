@@ -4,27 +4,22 @@ path:
   # cec1_root: ???
   # exp_folder: ??? # folder to store intermediate signals and final results
   root: /fastdata/act23ss/clarity_data/clarity_CEC3_data # root folder for clarity data
-  exp: /home/act23ss/clarity/data # folder to store enhanced signals and final results
-  scenes_folder: ${path.root}/${task}/clarity_data/dev/scenes
+  exp: /home/act23ss/clarity/data_base # folder to store enhanced signals and final results
+  #scenes_folder: ${path.root}/${task}/clarity_data/dev/scenes
+  scenes_folder: ${path.root}/${task}/clarity_data/dev/scenes_24k
   metadata_dir: ${path.root}/${task}/clarity_data/metadata
   scenes_listeners_file: ${path.metadata_dir}/scenes_listeners.dev.json
   listeners_file: ${path.metadata_dir}/listeners.json
   scenes_file: ${path.metadata_dir}/scenes.dev.json
-  cec2_root: /fastdata/act23ss/clarity_data
+  cec3_task1: ${path.root}/${task}
 
 sr: 32000
-sample_rate: 44100
-downsample_factor: 2
+# sample_rate: 44100
+sample_rate: 24000
+# downsample_factor: 2
 num_channels: 6
 level_norm: False
-wav_silence_len: 0
-
-listener:
-  # metafile: ${path.cec1_root}/clarity_CEC1_data/clarity_data/metadata/listeners.json
-  metafile: ${path.metadata_dir}/listeners.json
-  id: L0001
-  src_pos: ff
-  loudnorm: False
+# wav_silence_len: 0
 
 mc_conv_tasnet:
   N_spec: 256
@@ -53,16 +48,27 @@ fir:
   sample_rate: ${sample_rate}
   nfir: 220
 
+nalr:
+  nfir: 240
+  sample_rate: ${sample_rate}
+
+compressor:
+  threshold: 0.35
+  attenuation: 0.1
+  attack: 50
+  release: 1000
+  rms_buffer_size: 0.064
+
 den_trainer:
   optimizer:
-    lr: 1e-3
-  epochs: 50
+    lr: 1e-4
+  epochs: 100
   gradient_clip_val: 5.0
 
 amp_trainer:
   optimizer:
     lr: 5e-2
-  epochs: 1 #50
+  epochs: 1
   gradient_clip_val: 5.0
   stoilevel_loss:
     sr: ${sample_rate}
@@ -72,57 +78,38 @@ amp_trainer:
     alpha: 1
   num_sanity_val_steps: 2
 
-# train_dataset:
-#   scenes_folder: ${path.cec1_root}/clarity_CEC1_data/clarity_data/train/scenes
-#   scenes_file: ${path.cec1_root}/clarity_CEC1_data/clarity_data/metadata/scenes.train.json
-#   sample_rate: ${sample_rate}
-#   downsample_factor: ${downsample_factor}
-#   wav_sample_len: 2
-#   wav_silence_len: ${wav_silence_len}
-#   num_channels: ${num_channels}
-#   norm: ${level_norm}
-
 train_dataset:
-  scenes_folder: ${path.root}/${task}/clarity_data/train/scenes
+  scenes_folder: ${path.root}/${task}/clarity_data/train/scenes_24k
   scenes_file: ${path.metadata_dir}/scenes.train.json
+  auxiliary_folder: ${path.root}/${task}/clarity_data/train/targets_24k
   sample_rate: ${sample_rate}
-  downsample_factor: ${downsample_factor}
-  wav_sample_len: 2
-  wav_silence_len: ${wav_silence_len}
+  wav_sample_len: 3
+  auxiliary_sample_len: 2
   num_channels: ${num_channels}
   norm: ${level_norm}
 
 train_loader:
-  batch_size: 1
+  batch_size: 4
   shuffle: True
-  num_workers: 10 #8 10 were before
-  drop_last: true
+  num_workers: 10 
+  drop_last: True
   pin_memory: True
 
-# dev_dataset:
-#   scenes_folder: ${path.cec1_root}/clarity_CEC1_data/clarity_data/dev/scenes
-#   scenes_file: ${path.cec1_root}/clarity_CEC1_data/clarity_data/metadata/scenes.dev.json
-#   sample_rate: ${sample_rate}
-#   downsample_factor: ${downsample_factor}
-#   wav_sample_len: null
-#   wav_silence_len: ${wav_silence_len}
-#   num_channels: ${num_channels}
-#   norm: ${level_norm}
-
 dev_dataset:
-  scenes_folder: ${path.root}/${task}/clarity_data/dev/scenes
+  scenes_folder: ${path.root}/${task}/clarity_data/dev/scenes_24k
   scenes_file: ${path.metadata_dir}/scenes.dev.json
+  auxiliary_folder: ${path.root}/${task}/clarity_data/dev/speaker_adapt_24k
   sample_rate: ${sample_rate}
-  downsample_factor: ${downsample_factor}
   wav_sample_len: null
-  wav_silence_len: ${wav_silence_len}
+  auxiliary_sample_len: ${train_dataset.auxiliary_sample_len}
   num_channels: ${num_channels}
   norm: ${level_norm}
+  dev: True
 
 dev_loader:
   batch_size: 1
   shuffle: False
-  num_workers: 10 #8 10
+  num_workers: 10
 
 dev_test_dataset:
   scenes_folder: ${path.root}/${task}/clarity_data/dev/scenes
@@ -138,7 +125,7 @@ dev_test_dataset:
 dev_test_loader:
   batch_size: 1
   shuffle: False
-  num_workers: 1 #8 10
+  num_workers: 1 
 
 test_dataset:
   scenes_folder: ${path.root}/${task}/clarity_data/eval/scenes
@@ -154,7 +141,7 @@ test_dataset:
 test_loader:
   batch_size: 1
   shuffle: False
-  num_workers: 10 #8 10
+  num_workers: 10
 
 soft_clip: True
 
